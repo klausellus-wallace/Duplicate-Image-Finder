@@ -19,7 +19,7 @@ warnings.filterwarnings('ignore')
 
 class dif:
 
-    def __init__(self, directory_A, directory_B=None, similarity="normal", px_size=50, show_progress=True, show_output=False, delete=False, silent_del=False):
+    def __init__(self, directory_A, directory_B=None, similarity="normal", px_size=50, show_progress=True, show_output=False, delete=False, silent_del=False, move=False):
         """
         directory_A (str)........folder path to search for duplicate/similar images
         directory_B (str)........second folder path to search for duplicate/similar images
@@ -39,6 +39,8 @@ class dif:
         silent_del (bool)........! please use with care, as this cannot be undone
                                  True = skips the asking for user confirmation when deleting lower resolution duplicate images
                                  will only work if "delete" AND "silent_del" are both == True
+        move (bool)..............True = move duplicates to ./dupes folder
+                                 False = do not move dupes
 
         OUTPUT (set).............a dictionary with the filename of the duplicate images 
                                and a set of lower resultion images of all duplicates
@@ -55,7 +57,7 @@ class dif:
         start_time = time.time()        
         print("DifPy process initializing...", end="\r")
 
-        dif._validate_parameters(show_output, show_progress, similarity, px_size, delete, silent_del)
+        dif._validate_parameters(show_output, show_progress, similarity, px_size, delete, silent_del, move)
 
         if directory_B == None:
             # process one directory
@@ -103,9 +105,12 @@ class dif:
                         print("Image deletion canceled.")
                 else:
                     dif._delete_imgs(set(lower_quality))
+            else:
+                if move:
+                    dif._move_imgs(set(lower_quality))
 
     # Function that validates the input parameters of DifPy
-    def _validate_parameters(show_output, show_progress, similarity, px_size, delete, silent_del):
+    def _validate_parameters(show_output, show_progress, similarity, px_size, delete, silent_del, move):
         # validate the parameters of the function
         if show_output != True and show_output != False:
             raise ValueError('Invalid value for "show_output" parameter.')
@@ -124,6 +129,8 @@ class dif:
             raise ValueError('Invalid value for "delete" parameter.')
         if silent_del != True and silent_del != False:
             raise ValueError('Invalid value for "silent_del" parameter.')
+        if move != True and move != False:
+            raise ValueError('Invalid value for "move" parameter.')
 
     # Function that processes the directories that were input as parameters
     def _process_directory(directory):
@@ -379,6 +386,38 @@ class dif:
                 print("Could not delete file:", file, end="\r")
         print("\n***\nDeleted", deleted, "images.")
 
+    # Function for moving the lower quality images taht were found after the search
+    def _move_imgs(lower_quality_set):
+        moved = 0
+        # move lower quality images
+        for file in lower_quality_set:
+            print("\nMoving in progress...", end="\r")
+            try:
+                if args.output_directory != None:
+                    dir = args.output_directory + "/dupes"
+                else:
+                    dir = os.getcwd() + "/dupes"
+
+                # create dupes directory
+                if not os.path.exists(dir):
+                    os.makedirs(dir)
+
+                #replace targetFiles basePath w/ new one
+                targetFile = file.replace(args.directory_A, dir)
+                # extract targetDir from new File-location
+                targetDir = os.path.dirname(targetFile)
+
+                # create new directory if it not exists
+                if not os.path.exists(targetDir):
+                    os.makedirs(targetDir)
+
+                os.rename(file, targetFile)
+                print("Moved file:", file, end="\r")
+                moved += 1
+            except:
+                print("Could not move file:", file, end="\r")
+        print("\n***\nMoved", moved, "images.")
+
 def type_str_int(x):
     try:
         return int(x)
@@ -398,13 +437,14 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--show_output", type=bool, help='(optional) Shows the comapred images in real-time.', required=False, nargs='?', choices=[True, False], default=False)
     parser.add_argument("-d", "--delete", type=bool, help='(optional) Deletes all duplicate images with lower quality.', required=False, nargs='?', choices=[True, False], default=False)
     parser.add_argument("-D", "--silent_del", type=bool, help='(optional) Supresses the user confirmation when deleting images.', required=False, nargs='?', choices=[True, False], default=False)
+    parser.add_argument("-M", "--move", type=bool, help='(optional) move duplicates.', required=False, nargs='?', choices=[True, False], default=False)
     args = parser.parse_args()
 
     # initialize difPy
     search = dif(directory_A=args.directory_A, directory_B=args.directory_B,
                  similarity=args.similarity, px_size=args.px_size, 
                  show_output=args.show_output, show_progress=args.show_progress, 
-                 delete=args.delete, silent_del=args.silent_del)
+                 delete=args.delete, silent_del=args.silent_del, move=args.move)
 
     # create filenames for the output files
     timestamp =str(time.time()).replace(".", "_")
